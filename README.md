@@ -37,7 +37,7 @@ make all
 ```
 insert the module
 ```
-sudo insmod tcpql
+sudo insmod tcpql.ko
 ```
 set tcpql as current congestion control
 ```
