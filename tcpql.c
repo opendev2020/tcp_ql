@@ -28,7 +28,7 @@ static const u32 delta = 1;
 static const char procname[] = "tcpql";
 
 static const u32 learning_rate = 512;
-static const u32 discount_factor = 0.7; 
+static const u32 discount_factor = 12; 
 
 enum action{
 	CWND_UP_30,
@@ -339,7 +339,7 @@ static void update_Qtable(struct sock *sk, const struct rate_sample *rs){
 	}
 
 	updated_Qvalue = ((TCP_QL_SCALE-learning_rate)*thisQ[tql ->action] +
-			(learning_rate * (getRewardFromEnvironment(sk,rs) + (int)(discount_factor * max_tmp) - thisQ[tql -> action] )))>>10;
+			(learning_rate * (getRewardFromEnvironment(sk,rs) + (discount_factor * max_tmp)>>4 - thisQ[tql -> action] )))>>10;
 
 	if(updated_Qvalue == 0){
 		tql -> exited = 1; 
