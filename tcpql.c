@@ -152,12 +152,14 @@ static void reset_cwnd(struct sock *sk, const struct rate_sample *rs){
 
 static u32 epsilon_expore(u32 max_index){
 	u32 rand;
+	u32 rand2;
 	u32 random_value;
 	get_random_bytes(&rand, sizeof(rand));
 	random_value = (rand%10); // 0~9
 	if(random_value <= epsilon)
 		return max_index;
-	return (rand%numOfAction);
+	get_random_bytes(&rand2, sizeof(rand2));
+	return (rand2%numOfAction);
 }
 
 int softsignt(int value){	// softsign for throughput while caculate reward
