@@ -28,7 +28,7 @@ static const u32 delta = 1;
 static const char procname[] = "tcpql";
 
 static const u32 learning_rate = 512;
-static const u32 discount_factor = 10; 
+static const u32 discount_factor = 0.7; 
 
 enum action{
 	CWND_UP_30,
@@ -325,7 +325,7 @@ static void update_Qtable(struct sock *sk, const struct rate_sample *rs){
 	u32 newQ[numOfAction];
 	u8 i;
 	int updated_Qvalue;
-	u32 max_tmp; 
+	int max_tmp; 
 	
 	for(i=0; i<numOfAction; i++){
 		thisQ[i] = getMatValue(&matrix, tql->prev_state[0], tql->prev_state[1], tql->prev_state[2], i);
@@ -339,7 +339,7 @@ static void update_Qtable(struct sock *sk, const struct rate_sample *rs){
 	}
 
 	updated_Qvalue = ((TCP_QL_SCALE-learning_rate)*thisQ[tql ->action] +
-			(learning_rate * (getRewardFromEnvironment(sk,rs) + discount_factor * max_tmp - thisQ[tql -> action] )))>>10;
+			(learning_rate * (getRewardFromEnvironment(sk,rs) + (int)(discount_factor * max_tmp) - thisQ[tql -> action] )))>>10;
 
 	if(updated_Qvalue == 0){
 		tql -> exited = 1; 
