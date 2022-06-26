@@ -339,7 +339,7 @@ static void update_Qtable(struct sock *sk, const struct rate_sample *rs){
 	}
 
 	updated_Qvalue = ((TCP_QL_SCALE-learning_rate)*thisQ[tql ->action] +
-			(learning_rate * (getRewardFromEnvironment(sk,rs) + ((discount_factor * max_tmp)>>4) - thisQ[tql -> action] )))>>10;
+			(learning_rate * (getRewardFromEnvironment(sk,rs) + ((discount_factor * max_tmp)>>4))))>>10;
 
 	if(updated_Qvalue == 0){
 		tql -> exited = 1; 
