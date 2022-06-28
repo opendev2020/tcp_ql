@@ -315,11 +315,11 @@ static int update_state(struct sock *sk, const struct rate_sample *rs){
 		if(qc -> current_state[i] < 0)
 			qc -> current_state[i] = 0;
 
-		else if (qc -> current_state[i] > 100)
-			qc -> current_state[i] = 100; 
+		else if (qc -> current_state[i] > 99)
+			qc -> current_state[i] = 99; 
 	}
 
-	printk(KERN_INFO "throughtput : %d,rtt : %d", qc -> current_state[0], qc -> current_state[1]);
+	// printk(KERN_INFO "throughtput : %d,rtt : %d", qc -> current_state[0], qc -> current_state[1]);
 
 	return current_rtt;
 }
