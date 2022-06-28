@@ -307,9 +307,18 @@ static int update_state(struct sock *sk, const struct rate_sample *rs){
 	for (i=0; i<numOfState; i++)
 		qc -> prev_state[i] = qc -> current_state[i];
 	
-	qc -> current_state[0] = qc -> estimated_throughput>>21;	// test 0~100M
+	qc -> current_state[0] = qc -> estimated_throughput>>13;	// test 0~100M
 	current_rtt = rs->rtt_us;
 	qc -> current_state[1] = current_rtt >> 10;	// 0~100ms
+
+	for(i=0; i<numOfState; i++){
+		if(qc -> current_state[i] < 0)
+			qc -> current_state[i] = 0;
+
+		else if (qc -> current_state[i] > 100)
+			qc -> current_state[i] = 100; 
+	}
+
 	return current_rtt;
 }
 
