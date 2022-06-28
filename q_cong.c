@@ -2,11 +2,10 @@
 #include <net/tcp.h>
 #include <linux/math64.h>
 
-#define numOfState	3
+#define numOfState	2
 
-#define	state0_max	10	// throughput relative value
-#define	state1_max	19	// throughput diff value
-#define	state2_max	19	// rtt diff value
+#define	state0_max	100	// throughput
+#define	state1_max	100	// throughputrtt
 
 #define	Q_CONG_SCALE	1024
 
@@ -14,7 +13,7 @@
 
 #define epsilon 8   // Explore parameters 0~9 <= epsilon
 
-#define	sizeOfMatrix 	state0_max * state1_max * state2_max * numOfAction
+#define	sizeOfMatrix 	state0_max * state1_max * numOfAction
 
 static const u32 probertt_interval_msec = 10000;
 static const u32 training_interval_msec = 100;
@@ -46,7 +45,7 @@ enum q_cong_mode{
 
 typedef struct{
 	u8  enabled;
-	int mat[sizeOfMatrix];	//本身就是int，为什么不存负值得效用函数呢？
+	int mat[sizeOfMatrix];	
 	u8 row[numOfState];
 	u8 col;
 }Matrix; 
@@ -113,21 +112,21 @@ static void eraseMatrix(Matrix *m){
 	m -> enabled = 0; 
 }
 
-static void setMatValue(Matrix *m, u8 row1, u8 row2, u8 row3, u8 col, int v){
+static void setMatValue(Matrix *m, u8 row1, u8 row2, u8 col, int v){
 	u32 index = 0; 
 	if (!m)
 		return;
 	// row1 * m->row[1] * m->row[2] + row2 * m->row[2] + row3
-	index = m->col * (row1 * m->row[1] * m->row[2] + row2 * m->row[2]  + row3 ) + col;
+	index = m->col * (row1 * m->row[1] + row2 ) + col;
 	*(m -> mat + index) = v;
 }
 
-static int getMatValue(Matrix *m, u8 row1, u8 row2, u8 row3,  u8 col){
+static int getMatValue(Matrix *m, u8 row1, u8 row2,  u8 col){
 	u32 index = 0; 
 	if (!m)
 		return -1; 
 
-	index = m->col * (row1 * m->row[1] * m->row[2] + row2 * m->row[2]  + row3) + col;
+	index = m->col * (row1 * m->row[1] + row2) + col;
 	
 	return *(m -> mat + index);
 }
@@ -159,7 +158,7 @@ static u32 epsilon_expore(u32 max_index){
 	if(random_value <= epsilon)
 		return max_index;
 	get_random_bytes(&rand2, sizeof(rand2));
-	return (rand2%numOfAction);
+	return rand2%numOfAction;
 }
 
 int softsignt(int value){	// softsign for throughput while caculate reward
@@ -194,7 +193,7 @@ static u32 getAction(struct sock *sk, const struct rate_sample *rs){
 	u32 rand;	
 
 	for(i=0; i<numOfAction; i++){
-		Q[i] = getMatValue(&matrix, qc -> current_state[0], qc->current_state[1], qc->current_state[2],i);
+		Q[i] = getMatValue(&matrix, qc -> current_state[0], qc->current_state[1],i);
 	}
 
 	max_tmp = Q[0];
@@ -242,7 +241,8 @@ static int getRewardFromEnvironment(struct sock *sk, const struct rate_sample *r
 	 *
 	 */
 
-	result = 3 * diff_throughput - diff_delay - smooth_divide_current_throughput;
+	// result = 3 * diff_throughput - diff_delay - smooth_divide_current_throughput;
+	result = (alpha * qc -> estimated_throughput) / (beta * rs->rtt_us) / (delta * retransmit_division_factor);
 	
 	printk(KERN_INFO "reward : %d", result);
 	
@@ -307,10 +307,9 @@ static int update_state(struct sock *sk, const struct rate_sample *rs){
 	for (i=0; i<numOfState; i++)
 		qc -> prev_state[i] = qc -> current_state[i];
 	
-	qc -> current_state[0] = softsigntt((int)qc -> estimated_throughput, (int)qc -> smooth_throughput);
-	qc -> current_state[1] = softsign((int)(qc -> estimated_throughput - qc -> smooth_throughput));
+	qc -> current_state[0] = qc -> estimated_throughput>>21;	// test 0~100M
 	current_rtt = rs->rtt_us;
-	qc -> current_state[2] = softsign((int)(current_rtt - qc-> pre_rtt));		// pre_rtt是比smoothrtt好的，但是这里的问题是一秒一取造成了pre很不准确
+	qc -> current_state[1] = current_rtt >> 10;	// 0~100ms
 	return current_rtt;
 }
 
@@ -324,8 +323,8 @@ static void update_Qtable(struct sock *sk, const struct rate_sample *rs){
 	int max_tmp; 
 	
 	for(i=0; i<numOfAction; i++){
-		thisQ[i] = getMatValue(&matrix, qc->prev_state[0], qc->prev_state[1], qc->prev_state[2], i);
-		newQ[i] = getMatValue(&matrix, qc->current_state[0], qc->current_state[1], qc->current_state[2], i);
+		thisQ[i] = getMatValue(&matrix, qc->prev_state[0], qc->prev_state[1], i);
+		newQ[i] = getMatValue(&matrix, qc->current_state[0], qc->current_state[1], i);
 	}
 
 	max_tmp = newQ[0];
@@ -342,7 +341,7 @@ static void update_Qtable(struct sock *sk, const struct rate_sample *rs){
 		return;
 	}
 	
-	setMatValue(&matrix, qc->prev_state[0], qc->prev_state[1], qc->prev_state[2], qc->action, updated_Qvalue);
+	setMatValue(&matrix, qc->prev_state[0], qc->prev_state[1], qc->action, updated_Qvalue);
 }
 
 static void training(struct sock *sk, const struct rate_sample *rs){
@@ -367,7 +366,7 @@ static void training(struct sock *sk, const struct rate_sample *rs){
 
 		update_Qtable(sk,rs);
 execute:
-		printk(KERN_INFO "execute Action: %u", qc -> action);
+		// printk(KERN_INFO "execute Action: %u", qc -> action);
 		qc -> action = getAction(sk,rs);
 		executeAction(sk, rs);
 		qc -> last_update_stamp = tcp_jiffies32; 
@@ -426,7 +425,7 @@ static void q_cong_main(struct sock *sk, const struct rate_sample *rs){
 static void init_Q_cong(struct sock *sk){
 	struct Q_cong *qc;
 	struct tcp_sock *tp = tcp_sk(sk);
-	u8 Q_row[numOfState] = {state0_max, state1_max, state2_max};
+	u8 Q_row[numOfState] = {state0_max, state1_max};
 	u8 Q_col = numOfAction; 
 
 	qc = inet_csk_ca(sk);
@@ -449,10 +448,8 @@ static void init_Q_cong(struct sock *sk){
 	qc -> exited = 0; 
 	qc -> prev_state[0] = 0;
 	qc -> prev_state[1] = 0; 
-	qc -> prev_state[2] = 0;
 	qc -> current_state[0] = 0;
 	qc -> current_state[1] = 0;
-	qc -> current_state[2] = 0;
 
 	createMatrix(&matrix, Q_row, Q_col);
 }
