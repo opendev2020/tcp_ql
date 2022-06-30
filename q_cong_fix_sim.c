@@ -146,27 +146,6 @@ static u32 epsilon_expore(u32 max_index){
 	return rand2%numOfAction;
 }
 
-int softsignt(int value){	// softsign for throughput while caculate reward
-	u32 remainder;
-	return (div_s64_rem(value*10, ((value<0?~(--value):value) + 2000), &remainder));		// -9~9 | 2000 is the best value for throughput diff
-}
-
-int softsignr(int value){	// softsign for rtt while caculate reward
-	u32 remainder;
-	return (div_s64_rem(value*10, ((value<0?~(--value):value) + 800), &remainder));		// -9~9 | 800 is the best value for delay diff
-}
-
-int softsign(int value){    // softsign for others relative value in state
-	u32 remainder;
-	return (div_s64_rem(value*10, ((value<0?~(--value):value)+1000), &remainder)) + 9;		// 0-19 状态值
-}
-
-int softsigntt(int value, int throughput){	// softsign for throughput relative value in state
-	u32 remainder;
-	return div_s64_rem((value==0?1:value)*10, ((value==0?1:value) + throughput), &remainder);	// 0-9 状态值	smooth_throughout as parm
-}
-
-
 static u32 getAction(struct sock *sk, const struct rate_sample *rs){
 	struct Q_cong *qc = inet_csk_ca(sk);
 
@@ -207,10 +186,10 @@ static int getRewardFromEnvironment(struct sock *sk, const struct rate_sample *r
 	//struct tcp_sock *tp = tcp_sk(sk);
 	struct Q_cong *qc = inet_csk_ca(sk);
 	u32 retransmit_division_factor; 
-    int diff_throughput;
-    int diff_delay;
-    int smooth_divide_current_throughput;
-    int result;
+    // int diff_throughput;
+    // int diff_delay;
+    // int smooth_divide_current_throughput;
+    // int result;
 
 	retransmit_division_factor = qc -> retransmit_during_interval + 1;
 	if(retransmit_division_factor == 0 || rs->rtt_us == 0)
