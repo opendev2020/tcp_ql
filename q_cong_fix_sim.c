@@ -19,10 +19,6 @@ static const u32 training_interval_msec = 100;
 static const u32 max_probertt_duration_msecs = 200;
 static const u32 estimate_min_rtt_cwnd = 4;
 
-static const u32 alpha = 200;
-static const u32 beta = 1;
-static const u32 delta = 1; 
-
 static const char procname[] = "tcpql";
 
 static const int learning_rate = 512;
@@ -66,7 +62,6 @@ struct Q_cong{
 	u32 	retransmit_during_interval; 
 
 	u32	last_probertt_stamp;
-	u32 pre_rtt; 
 	u32 	min_rtt_us; 
 	u32	prop_rtt_us;
 	u32	prior_cwnd;
@@ -131,7 +126,7 @@ static int getMatValue(Matrix *m, u8 row1,  u8 col){
 }
 
 static u32 q_cong_ssthresh(struct sock *sk){
-	return TCP_INFINITE_SSTHRESH; /* TCP Q-congestion does not use ssthresh */
+	return TCP_INFINITE_SSTHRESH;
 }
 
 static u32 epsilon_expore(u32 max_index){
@@ -186,28 +181,12 @@ static int getRewardFromEnvironment(struct sock *sk, const struct rate_sample *r
 	//struct tcp_sock *tp = tcp_sk(sk);
 	struct Q_cong *qc = inet_csk_ca(sk);
 	u32 retransmit_division_factor; 
-    // int diff_throughput;
-    // int diff_delay;
-    // int smooth_divide_current_throughput;
-    // int result;
+    int result;
 
 	retransmit_division_factor = qc -> retransmit_during_interval + 1;
 	if(retransmit_division_factor == 0 || rs->rtt_us == 0)
 		return 0;
 	
-	// diff_throughput = softsignt((int)(qc -> estimated_throughput - qc -> smooth_throughput));
-	// diff_delay = softsignr((int)((rs -> rtt_us - qc -> min_rtt_us)-(qc -> pre_rtt - qc -> min_rtt_us)));	// measurement inaccuracy
-	// smooth_divide_current_throughput =  (int)(qc -> smooth_throughput / (qc -> estimated_throughput==0?1:qc -> estimated_throughput)) > 20 ? 20 : (int)(qc -> smooth_throughput / (qc -> estimated_throughput==0?1:qc -> estimated_throughput));
-
-    /* 
-	 * Utility Function
-	 *
-	 * Utility = 3 * diff_throughput - diff_delay  - smooth_divide_current_throughput
-	 *
-	 */
-
-	// result = 3 * diff_throughput - diff_delay - smooth_divide_current_throughput;
-	// result = (alpha * qc -> estimated_throughput) / (beta * rs->rtt_us) / (delta * retransmit_division_factor);
 	result = qc -> estimated_throughput - qc -> pre_throughput;
 	
 	printk(KERN_INFO "reward : %d", result);
@@ -266,7 +245,7 @@ static void calc_throughput(struct sock *sk){
 	qc -> last_sequence = tp -> segs_out;
 }
 
-static int update_state(struct sock *sk, const struct rate_sample *rs){
+static void update_state(struct sock *sk, const struct rate_sample *rs){
 	struct Q_cong *qc = inet_csk_ca(sk);
     int current_rtt;
 	u8 i; 
@@ -275,7 +254,6 @@ static int update_state(struct sock *sk, const struct rate_sample *rs){
 		qc -> prev_state[i] = qc -> current_state[i];
 	
 	qc -> current_state[0] = qc -> estimated_throughput>>9;	// test 0~100M
-	current_rtt = rs->rtt_us;
 	// qc -> current_state[1] = current_rtt >> 13;	// 0~100ms  8ms/pre
 
 	for(i=0; i<numOfState; i++){
@@ -285,8 +263,6 @@ static int update_state(struct sock *sk, const struct rate_sample *rs){
 		else if (qc -> current_state[i] > 99)
 			qc -> current_state[i] = 99; 
 	}
-
-	return current_rtt;
 }
 
 static void update_Qtable(struct sock *sk, const struct rate_sample *rs){
@@ -333,7 +309,7 @@ static void training(struct sock *sk, const struct rate_sample *rs){
 			goto execute;
 
 		calc_throughput(sk);
-		qc -> pre_rtt = update_state(sk,rs);
+		update_state(sk,rs);
 		calc_retransmit_during_interval(sk);
 
 		if (qc -> exited == 1){
@@ -346,7 +322,6 @@ static void training(struct sock *sk, const struct rate_sample *rs){
 execute:
 		// printk(KERN_INFO "execute Action: %u", qc -> action);
 		qc -> action = getAction(sk,rs);
-		// printk(KERN_INFO "action: %d", qc -> action);
 		executeAction(sk, rs);
 		qc -> last_update_stamp = tcp_jiffies32; 
 	}
@@ -390,7 +365,6 @@ static void update_min_rtt(struct sock *sk, const struct rate_sample* rs){
 static void q_cong_main(struct sock *sk, const struct rate_sample *rs){
 	// struct tcp_sock *tp = tcp_sk(sk);
 
-	// reset_cwnd(sk, rs);
 	training(sk, rs);
 	update_min_rtt(sk,rs);
 }
@@ -415,7 +389,6 @@ static void init_Q_cong(struct sock *sk){
 	qc -> last_probertt_stamp = tcp_jiffies32;
 	qc -> min_rtt_us = tcp_min_rtt(tp);
 	qc -> prop_rtt_us = tcp_min_rtt(tp);
-	qc -> pre_rtt = tcp_min_rtt(tp);
 	qc -> prior_cwnd = 0;
 	qc -> retransmit_during_interval = 0;
 
