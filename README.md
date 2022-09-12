@@ -1,9 +1,8 @@
-# tcpql
-tcpql is a new congestion control algorithm based on q-learning.
-
+# SATCC
+SATCC: A Congestion Control Algorithm for Dynamic Satellite Networks.
 
 ## Envs
-os : Ubuntu
+os : Ubuntu 4.146 mptcp kernel
 
 ## usage
 clone the repo
@@ -12,14 +11,14 @@ git clone https://github.com/opendev2020/tcp_ql.git
 ```
 build
 ```
-cd tcp_ql
+cd SATCC
 make all
 ```
 insert the module
 ```
-sudo insmod tcpql.ko
+sudo insmod tcp_satcc.ko
 ```
-set tcpql as current congestion control
+set satcc as current congestion control
 ```
-sysctl net.ipv4.tcp_congestion_control=tcpql
+sysctl net.ipv4.tcp_congestion_control=satcc
 ```

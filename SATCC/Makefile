@@ -1,4 +1,4 @@
-obj-m += tcpql.o
+obj-m += tcp_satcc.o
 all:
 	make -C /lib/modules/$(shell uname -r)/build/ M=$(PWD) modules
 
