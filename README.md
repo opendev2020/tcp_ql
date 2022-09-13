@@ -2,7 +2,7 @@
 SATCC: A Congestion Control Algorithm for Dynamic Satellite Networks.
 
 ## Envs
-os : Ubuntu 4.146 mptcp kernel
+os : Ubuntu 20/18，linux kernel-4.146-mptcp
 
 ## usage
 clone the repo
