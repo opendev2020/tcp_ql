@@ -499,7 +499,7 @@ static void update_Qtable(struct sock *sk, const struct rate_sample *rs)
 					  (learning_rate * (getRewardFromEnvironment(sk, rs) + ((discount_factor * max_tmp) >> 4)))) >>
 					 10;
 
-	setMatValue(&matrix, qc->prev_state[0], qc->prev_state[1], qc->prev_state[1], qc->action, updated_Qvalue);
+	setMatValue(&matrix, qc->prev_state[0], qc->prev_state[1], qc->prev_state[2], qc->action, updated_Qvalue);
 }
 
 static void training(struct sock *sk, const struct rate_sample *rs)
