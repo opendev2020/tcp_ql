@@ -30,7 +30,7 @@ static const char procname[] = "satcc";
 static const int learning_rate = 512;
 static const int discount_factor = 12;
 
-#define MY_READ_FILE "/qtable-train-result"
+#define MY_READ_FILE "/qtable-train-result-500ms"
 #define MY_SAVE_FILE "/qtable"
 
 enum action
@@ -55,6 +55,8 @@ typedef struct
 	u8 row[numOfState];
 	u8 col;
 } Matrix;
+
+static Matrix matrix;
 
 struct Q_cong
 {
@@ -286,7 +288,7 @@ static u32 getAction(struct sock *sk, const struct rate_sample *rs)
 		get_random_bytes(&rand, sizeof(rand));
 		max_index = (rand % numOfAction);
 	}
-	printk(KERN_INFO "choose action: %d, and it's q value is %d", max_index, max_tmp);
+	// printk(KERN_INFO "choose action: %d, and it's q value is %d", max_index, max_tmp);
 	return epsilon_expore(sk, max_index);
 }
 
@@ -436,11 +438,11 @@ static void update_state(struct sock *sk, const struct rate_sample *rs)
 	for (i = 0; i < numOfState; i++)
 		qc->prev_state[i] = qc->current_state[i];
 
-	qc->current_state[0] = qc->estimated_throughput>>8; // 240 -> 0-60Mbps
+	qc->current_state[0] = qc->estimated_throughput>>9; // 240 -> 0-120Mbps
 
-	qc->current_state[2] = 0;  // close the third axis
+	qc->current_state[2] = 0;	// third axis
 
-	qc->current_state[1] = (rs->rtt_us - qc->min_rtt_us) >> 12;   // 100 -> 0-400ms
+	qc->current_state[1] = (rs->rtt_us - qc->min_rtt_us) >> 13;   // 100 -> 0-800ms
 
 	if (qc->current_state[0] < 0)
 		qc->current_state[0] = 0;
@@ -640,15 +642,19 @@ static void init_Q_cong(struct sock *sk)
 		printk(KERN_INFO "init qtable error");
         return;
 	}
-	else
-		printk(KERN_INFO "qtable %p", qc->qtable);
-		read_Matrix(qc->qtable);
+	else{
+		memcpy(qc->qtable, &matrix, sizeof(Matrix));
+	}
 }
 
 static void release_Q_cong(struct sock *sk)
 {	
 	struct Q_cong *qc = inet_csk_ca(sk);
-	kvfree(qc->qtable);
+	if(qc->qtable){
+		kvfree(qc->qtable);
+	}else{
+		printk(KERN_INFO "qc table is null");
+	}
 	// eraseMatrix();
 }
 
@@ -665,6 +671,12 @@ struct tcp_congestion_ops q_cong = {
 
 static int __init Q_cong_init(void)
 {	
+	int i;
+	read_Matrix(&matrix);
+	printk(KERN_INFO "qtable col : %d", matrix.col);
+	for(i=0;i<numOfState;i++){
+		printk(KERN_INFO "qtable row%d : %d", i, matrix.row[i]);
+	}
 	BUILD_BUG_ON(sizeof(struct Q_cong) > ICSK_CA_PRIV_SIZE); 
 	return tcp_register_congestion_control(&q_cong);
 }
